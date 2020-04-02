@@ -266,11 +266,13 @@ impl Series {
         let max;
         if range.len() != 1 {
             max = *range
-                .get(1)
+                .get(range.len() - 1)
                 .ok_or(anyhow!("Can not fetch second range number"))?;
         }else {
             max = min;
         }
+        println!("{}", min);
+        println!("{}", max);
         for episode_count in min..=max {
             println!("{}", "Waiting 10 seconds before continuing".purple());
             thread::sleep(Duration::from_secs(10));
