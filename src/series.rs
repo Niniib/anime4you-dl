@@ -255,7 +255,7 @@ impl Series {
         }
     }
 
-    pub fn get_episodes(&self, range: Vec<u32>) -> Result<Vec<String>, Error> {
+    pub fn get_episodes(&self, range: &Vec<u32>) -> Result<Vec<String>, Error> {
         let mut episodes: Vec<String> = Vec::new();
         let vivo_regex = Regex::new(r#"<button href='(.+)' data-src"#).unwrap(); // vivo link regex
         let alternative_regex = Regex::new(r#"<button data-src='([^<]*)' class"#).unwrap(); // alternative host regex
@@ -263,9 +263,14 @@ impl Series {
         let min = *range
             .get(0)
             .ok_or(anyhow!("Can not fetch first range number"))?;
-        let max = *range
-            .get(1)
-            .ok_or(anyhow!("Can not fetch seconds range number"))?;
+        let max;
+        if range.len() != 1 {
+            max = *range
+                .get(1)
+                .ok_or(anyhow!("Can not fetch second range number"))?;
+        }else {
+            max = min;
+        }
         for episode_count in min..=max {
             println!("{}", "Waiting 10 seconds before continuing".purple());
             thread::sleep(Duration::from_secs(10));

@@ -8,6 +8,8 @@ use std::str::FromStr;
 
 use crate::series::{Series, Synchronization};
 
+mod series;
+
 fn main() {
     match run() {
         Ok(_) => {}
@@ -143,11 +145,11 @@ fn run() -> Result<(), Error> {
             arg_episodes.push(i);
         }
     }
-    let episodes = series.get_episodes(arg_episodes)?;
-    let mut episode_count: u32 = 1;
+    let episodes = series.get_episodes(&arg_episodes)?;
+    let mut episode_count: u32 = arg_episodes[0];
 
     for link in episodes {
-        let mut pattern = "(%series_name)-Episode(%episode)".to_string();
+        let mut pattern = "(%series_name)-Episode-(%episode)".to_string();
         if matches.is_present("file_pattern") {
             pattern = matches.value_of("file_pattern").unwrap().to_string();
         }
