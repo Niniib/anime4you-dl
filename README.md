@@ -1,7 +1,6 @@
 # Anime4You-dl
 Downloads anime from https://www.anime4you.one/
 ## How to use?
-### You need to install `youtube-dl` before using this cli tool
 ### You can also show the help with **--help**
 ### Specify series
 To specify an anime use `--name (-n) "Anime name"` or `--id (-i) id`
@@ -22,6 +21,9 @@ With the **--episodes (-e)** option you can download specified episodes | 2,5 wi
 With the **--file-pattern (-p) "(%series_name)-Episode-(%episode)"** option you can specify a pattern of your choice with `(%series_name)` `(%episode)`
 
 The file extension will be recognized automatically
+
+### youtube-dl
+With the **--youtube-dl (-y)** flag you download the series with `youtube-dl`
 
 ### Output directory
 You could specify an output directory with **--output (-o)**

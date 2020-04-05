@@ -17,23 +17,34 @@ const CAPTCHA_REQUEST: &str = "/src/captcha-request.php";
 const CHECK_CAPTCHA: &str = "/check_captcha.php";
 const ANIME_LIST: &str = "/speedlist.old.txt";
 
-/*#[derive(Clone, Debug)]
+#[derive(Clone, Debug)]
 pub enum Host {
     Vivo,
-    Openload,
     Vidoza,
-    Vidto,
-    Streamango,
-    Streamcherry,
-    Verystream,
-    Mystream,
-    NXLoad,
-    Jetload,
-    Vidlox,
     GoUnlimited,
-    Onlystream,
     Unknown,
-}*/
+}
+
+impl Host {
+    pub fn get_from_name(link: &str) -> Host {
+        let regex = Regex::new(r#"https://(.*?)/"#).unwrap();
+        let mut hoster = Host::Unknown;
+        if let Some(capture) = regex.captures_iter(link).next() {
+            hoster = match capture
+                .get(1)
+                .ok_or(anyhow!("regex capture does not have valid string result"))
+                .unwrap()
+                .as_str()
+            {
+                "vivo.sx" => Host::Vivo,
+                "gounlimited.to" => Host::GoUnlimited,
+                "vidoza.net" => Host::Vidoza,
+                _ => Host::Unknown,
+            }
+        }
+        hoster
+    }
+}
 
 #[derive(Clone, Debug)]
 pub enum Synchronization {
@@ -268,11 +279,9 @@ impl Series {
             max = *range
                 .get(range.len() - 1)
                 .ok_or(anyhow!("Can not fetch second range number"))?;
-        }else {
+        } else {
             max = min;
         }
-        println!("{}", min);
-        println!("{}", max);
         for episode_count in min..=max {
             println!("{}", "Waiting 10 seconds before continuing".purple());
             thread::sleep(Duration::from_secs(10));

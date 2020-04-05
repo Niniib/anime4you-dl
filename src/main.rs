@@ -1,13 +1,15 @@
-use std::fs::create_dir;
+use std::fs::{create_dir, File};
 use std::process::{exit, Command};
-
-use anyhow::{anyhow, Error};
-use clap::{App, Arg};
-use colored::Colorize;
 use std::str::FromStr;
 
-use crate::series::{Series, Synchronization};
+use clap::{App, Arg};
+use colored::Colorize;
 
+use anyhow::{anyhow, Error};
+
+use crate::series::{Host, Series, Synchronization};
+
+mod downloader;
 mod series;
 
 fn main() {
@@ -73,7 +75,7 @@ fn run() -> Result<(), Error> {
                 .long("youtube-dl")
                 .short("y")
                 .takes_value(false)
-                .help("You have to use youtube-dl"),
+                .help("Downloads the series with youtube-dl"),
         )
         .arg(
             Arg::with_name("episodes")
@@ -128,7 +130,7 @@ fn run() -> Result<(), Error> {
     }
     let _ = create_dir(&output);
 
-    let mut use_youtube_dl = true; //TODO: implement own vivo,... downloader || let mut use_youtube_dl = false;
+    let mut use_youtube_dl = false;
     if matches.is_present("use_youtube_dl") {
         use_youtube_dl = true;
     }
@@ -158,7 +160,36 @@ fn run() -> Result<(), Error> {
         if use_youtube_dl {
             let _ = youtube_dl(link.as_str(), format!("{}/{}", output, pattern).as_str());
         } else {
-            //TODO: implement own downloader
+            let link = link.as_str();
+            let hoster = Host::get_from_name(link);
+            let downloader = match hoster {
+                Host::Vivo => Some(downloader::vivo::new(link)?),
+                Host::Vidoza => Some(downloader::vidoza::new(link)?),
+                Host::GoUnlimited => Some(downloader::gounlimited::new(link)?),
+                _ => None,
+            };
+            if downloader.is_none() {
+                println!("{}", "Could not find suitable downloader! Please use the -y flag to enable youtube-dl".red());
+                exit(1);
+            }
+            let downloader = downloader.unwrap();
+            let episode_name = format!("{}/{}.{}", output, pattern, downloader.get_extension());
+            println!(
+                "{}",
+                format!("Downloading {} => {}", downloader.get_url(), &episode_name)
+                    .as_str()
+                    .green()
+            );
+            let downloaded_episode = downloader.download_to_file(&mut File::create(&episode_name)?);
+            if downloaded_episode.is_err() {
+                println!(
+                    "{}",
+                    format!("Could not download episode {} -- skipped", episode_name)
+                        .as_str()
+                        .red()
+                );
+                continue;
+            }
         }
         episode_count += 1;
     }
@@ -172,9 +203,14 @@ fn youtube_dl(url: &str, output: &str) -> Result<(), Error> {
         "{}",
         format!("Downloading {}...", url).as_str().bright_green()
     );
-    p.arg(url)
+    let cmd = p
+        .arg(url)
         .arg("--output")
         .arg(format!("{}.%(ext)s", output).as_str())
-        .output()?;
+        .output();
+    if cmd.is_err() {
+        println!("You did not install youtube-dl!");
+        exit(1);
+    }
     Ok(())
 }
