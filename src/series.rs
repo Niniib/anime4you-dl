@@ -1,3 +1,4 @@
+use image::Rgba;
 use std::collections::HashMap;
 use std::io::Read;
 use std::process::exit;
@@ -10,6 +11,9 @@ use reqwest::header::HeaderValue;
 use reqwest::Client;
 
 use anyhow::{anyhow, Error};
+use image::{load_from_memory_with_format, ImageFormat};
+
+extern crate image;
 
 const SITE: &str = "https://www.anime4you.one";
 const CAPTCHA_SITE: &str = "https://captcha.anime4you.one";
@@ -282,11 +286,12 @@ impl Series {
         } else {
             max = min;
         }
-        for episode_count in min..=max {
-            println!("{}", "Waiting 10 seconds before continuing".purple());
-            thread::sleep(Duration::from_secs(10));
-            println!("{}", "[*] Fetching Cookies".yellow());
-            let cookies_request = client
+        'outer: for episode_count in min..=max {
+            loop {
+                println!("{}", "Waiting 10 seconds before continuing".purple());
+                thread::sleep(Duration::from_secs(10));
+                println!("{}", "[*] Fetching Cookies".yellow());
+                let cookies_request = client
                 .get(&format!(
                     "{}/show/1/aid/{}/epi/{}/#vidplayer",
                     SITE, self.id, episode_count
@@ -306,24 +311,25 @@ impl Series {
                 .header("Dnt", "1")
                 .header("Connection", "keep-alive")
                 .send();
-            let cookies_request = cookies_request?;
-            if cookies_request.status().is_success() {
-                println!("{}", "\t[*] Successfully fetched cookies".green());
-            } else {
-                println!("{}", "\t[!] Failed to fetch cookies. Next episode...".red());
-                continue;
-            }
-            let mut cookie_jar = CookieJar::parse(
-                cookies_request
-                    .headers()
-                    .get_all("set-cookie")
-                    .iter()
-                    .collect(),
-            )?;
-
-            println!("{}", "[*] Fetching vkey".yellow());
-            let mut vkey_request = client
-                .get(&format!("{}/index.php", CAPTCHA_SITE))
+                let cookies_request = cookies_request?;
+                if cookies_request.status().is_success() {
+                    println!("{}", "\t[*] Successfully fetched cookies".green());
+                } else {
+                    println!("{}", "\t[!] Failed to fetch cookies. Next episode...".red());
+                    continue 'outer;
+                }
+                let cookie_jar = CookieJar::parse(
+                    cookies_request
+                        .headers()
+                        .get_all("set-cookie")
+                        .iter()
+                        .collect(),
+                )?;
+                let mut captcha_site = client
+                .get(&format!(
+                    "{}/index.php?aid={}&epi={}",
+                    CAPTCHA_SITE, self.id, episode_count
+                ))
                 .header("Cookie", cookie_jar.serialize())
                 .header(
                     "Referer",
@@ -336,173 +342,184 @@ impl Series {
                 .header(
                     "User-Agent",
                     "Mozilla/5.0 (X11; Linux x86_64; rv:74.0) Gecko/20100101 Firefox/74.0",
-                )
-                .send()?; // vkey
-            let vkey_regex = Regex::new(r#"parent\.postMessage\(\{v1: 'myevent',v2: '(.*?)'"#)?;
-            let vkey: String;
-            let vkey_request_text = &vkey_request.text()?;
-            loop {
-                if let Some(capture) = vkey_regex.captures_iter(vkey_request_text).next() {
-                    vkey = capture.get(1).unwrap().as_str().to_string();
-                    cookie_jar.update(CookieJar::parse(
-                        vkey_request
-                            .headers()
-                            .get_all("set-cookie")
-                            .iter()
-                            .collect(),
-                    )?);
-                    println!("{}", "\t[*] Successfully fetched vkey".green());
-                    println!("{}", "[*] New cookies set".green());
-                    break;
-                } else {
-                    println!("{}", "[!] Failed fetching vkey".red());
-                    println!("{}", "Waiting 30 seconds before continuing".purple());
-                    println!("{}", vkey_request_text);
-                    thread::sleep(Duration::from_secs(30));
-                    continue;
-                }
-            }
-            println!("{}", "[*] Trying captcha".yellow());
-            println!("{}", "\t[*] Fetching captcha hashes".yellow());
-            let value = client
-                .post(&format!("{}{}", CAPTCHA_SITE, CAPTCHA_REQUEST))
-                .header("Referer", &format!("{}{}", CAPTCHA_SITE, CAPTCHA_REQUEST))
-                .header("Dnt", "1")
-                .header("X-Requested-With", "XMLHttpRequest")
-                .header("Cookie", cookie_jar.serialize())
-                .form(&[("cID", "0"), ("rT", "1"), ("tM", "light")])
-                .send()?
-                .json::<serde_json::Value>();
-            if value.is_err() {
-                println!("{}", "\t[!] Fetching captcha hashes failed".red());
-                println!("{}", "[!] Captcha failed!".red());
-                exit(1);
-            }
-            let value = value?;
-            for hash in value.as_array().ok_or(anyhow!("Invalid hash response"))? {
-                let hash_request = client
-                    .get(&format!(
-                        "{}{}?cid=0&hash={}",
-                        CAPTCHA_SITE,
-                        CAPTCHA_REQUEST,
-                        hash.as_str().ok_or(anyhow!("Invalid hash value"))?
-                    ))
+                ).send()?;
+                let captcha_site = captcha_site.text()?;
+                let ip_regex =
+                    Regex::new(r#"<input type="hidden" value="(.*?)" name="ip">"#).unwrap();
+                let captures = ip_regex
+                    .captures(captcha_site.as_str())
+                    .ok_or(anyhow!("Failed to fetch ip"))?;
+                let ip = captures.get(1).unwrap().as_str();
+                println!("{}", "[*] Trying captcha".yellow());
+                println!("{}", "\t[*] Fetching captcha hashes".yellow());
+                let value = client
+                    .post(&format!("{}{}", CAPTCHA_SITE, CAPTCHA_REQUEST))
+                    .header("Referer", &format!("{}{}", CAPTCHA_SITE, CAPTCHA_REQUEST))
+                    .header("Dnt", "1")
+                    .header("X-Requested-With", "XMLHttpRequest")
                     .header("Cookie", cookie_jar.serialize())
-                    .header("Referer", "https://captcha.anime4you.one/index.php")
-                    .header("Accept", "image/webp,*/*")
+                    .form(&[("cID", "0"), ("rT", "1"), ("tM", "light")])
+                    .send()?
+                    .json::<serde_json::Value>();
+                if value.is_err() {
+                    println!("{}", "\t[!] Fetching captcha hashes failed".red());
+                    println!("{}", "[!] Captcha failed!".red());
+                    exit(1);
+                }
+                let value = value?;
+                let mut images = Vec::new();
+                let mut alpha_values = Vec::new();
+                for hash in value.as_array().ok_or(anyhow!("Invalid hash response"))? {
+                    let hash_request = client
+                        .get(&format!(
+                            "{}{}?cid=0&hash={}",
+                            CAPTCHA_SITE,
+                            CAPTCHA_REQUEST,
+                            hash.as_str().ok_or(anyhow!("Invalid hash value"))?
+                        ))
+                        .header("Cookie", cookie_jar.serialize())
+                        .header("Referer", "https://captcha.anime4you.one/index.php")
+                        .header("Accept", "image/webp,*/*")
+                        .header(
+                            "User-Agent",
+                            "Mozilla/5.0 (X11; Linux x86_64; rv:74.0) Gecko/20100101 Firefox/74.0",
+                        )
+                        .send()?;
+                    let bytes = hash_request.bytes();
+                    images.push(load_from_memory_with_format(
+                        bytes
+                            .map(|b| b.unwrap_or(0u8))
+                            .collect::<Vec<u8>>()
+                            .as_ref(),
+                        ImageFormat::Png,
+                    )?);
+                    println!(
+                        "\t\t{}",
+                        format!("[*] Got capture hash icon {}", hash)
+                            .as_str()
+                            .green()
+                    );
+                }
+                for (i, image) in images.into_iter().enumerate() {
+                    alpha_values.push((
+                        i,
+                        image
+                            .as_rgba8()
+                            .unwrap()
+                            .pixels()
+                            .map(|&Rgba([_, _, _, a])| a as u64)
+                            .sum::<u64>(),
+                    ));
+                }
+                alpha_values.sort_by_key(|&(_, a)| a);
+                let random_hash = value
+                    .get(
+                        if (alpha_values[0].1 as i64 - alpha_values[1].1 as i64).abs()
+                            > (alpha_values[3].1 as i64 - alpha_values[4].1 as i64).abs()
+                        {
+                            alpha_values[0].0
+                        } else {
+                            alpha_values[4].0
+                        },
+                    )
+                    .ok_or(anyhow!("Captcha hashes does not have values"))?
+                    .as_str()
+                    .ok_or(anyhow!("Captcha hash is not valid string"))?;
+                let _response = client
+                    .post(&format!("{}{}", CAPTCHA_SITE, CAPTCHA_REQUEST))
+                    .header("X-Requested-With", "XMLHttpRequest")
+                    .header("Referer", &format!("{}{}", CAPTCHA_SITE, CAPTCHA_REQUEST))
+                    .header("Origin", CAPTCHA_SITE)
+                    .header("Host", "captcha.anime4you.one")
+                    .header("TE", "Trailers")
                     .header(
                         "User-Agent",
                         "Mozilla/5.0 (X11; Linux x86_64; rv:74.0) Gecko/20100101 Firefox/74.0",
                     )
+                    .header(
+                        "Content-Type",
+                        "application/x-www-form-urlencoded; charset=UTF-8",
+                    )
+                    .header("Content-Length", "62")
+                    .header("Cookie", cookie_jar.serialize())
+                    .header("Connection", "keep-alive")
+                    .header("Accept", "*/*")
+                    .form(&[("cID", "0"), ("pC", random_hash), ("rT", "2")])
                     .send()?;
-                let bytes_count = hash_request.bytes().count();
-                if bytes_count > 0 {
-                    println!(
-                        "\t\t{}",
-                        format!("[*] Got capture hash icon {} with {}b", hash, bytes_count)
-                            .as_str()
-                            .green()
-                    );
-                } else {
-                    println!("{}", "[!] Failed to get captcha image".red());
+
+                let mut vkey_request = client
+                    .post(&format!("{}{}", CAPTCHA_SITE, CHECK_CAPTCHA))
+                    .header("Cookie", cookie_jar.serialize())
+                    .form(&[
+                        ("captcha-hf", random_hash),
+                        ("captcha-idhf", "0"),
+                        ("aid", self.id.to_string().as_str()),
+                        ("epi", episode_count.to_string().as_str()),
+                        ("ip", ip),
+                    ])
+                    .send()?;
+
+                let api_response = vkey_request.json::<serde_json::Value>();
+                if api_response.is_err() {
+                    println!("{}", "[!] Failed to solve captcha! Trying again.".red());
+                    // Failed captcha, redoing...
+                    continue;
                 }
-            }
-            let _response = client
-                .post(&format!("{}{}", CAPTCHA_SITE, CAPTCHA_REQUEST))
-                .header("X-Requested-With", "XMLHttpRequest")
-                .header("Referer", &format!("{}{}", CAPTCHA_SITE, CAPTCHA_REQUEST))
-                .header("Origin", CAPTCHA_SITE)
-                .header("Host", "captcha.anime4you.one")
-                .header("TE", "Trailers")
-                .header(
-                    "User-Agent",
-                    "Mozilla/5.0 (X11; Linux x86_64; rv:74.0) Gecko/20100101 Firefox/74.0",
-                )
-                .header(
-                    "Content-Type",
-                    "application/x-www-form-urlencoded; charset=UTF-8",
-                )
-                .header("Content-Length", "62")
-                .header("Cookie", cookie_jar.serialize())
-                .header("Connection", "keep-alive")
-                .header("Accept", "*/*")
-                .form(&[
-                    ("cID", "0"),
-                    (
-                        "pC",
-                        value
-                            .get(0)
-                            .ok_or(anyhow!("Captcha hashes does not have values"))?
-                            .as_str()
-                            .ok_or(anyhow!("Captcha hash is not valid string"))?,
-                    ),
-                    ("rT", "2"),
-                ])
-                .send()?;
+                let api_response = api_response?;
 
-            let _response = client
-                .post(&format!("{}{}", CAPTCHA_SITE, CHECK_CAPTCHA))
-                .header("Cookie", cookie_jar.serialize())
-                .form(&[
-                    (
-                        "captcha-hf",
-                        value
-                            .get(0)
-                            .unwrap()
-                            .as_str()
-                            .ok_or(anyhow!("Captcha hash is not valid string"))?,
-                    ),
-                    ("captcha-idhf", "0"),
-                ])
-                .send()?;
-            println!("{}", "[*] Resolved captcha!".green());
+                let vkey = api_response
+                    .get("hw")
+                    .ok_or(anyhow!("Unable to get vkey"))?
+                    .as_str()
+                    .ok_or(anyhow!("Unable to get vkey as string"))?;
+                println!("{}", "[*] Resolved captcha!".green());
 
-            let mut response = client
-                .post(&format!("{}/check_hoster.php", SITE))
-                .form(&[
-                    ("epi", &episode_count.to_string()),
-                    ("aid", &self.id.to_string()),
-                    ("act", &episode_count.to_string()),
-                    ("vkey", &vkey),
-                    ("username", &"".to_string()),
-                ])
-                .send()?;
-            let response_text = response.text()?;
-
-            if vivo_regex.is_match(&response_text) {
-                // vivo
-                for capture in vivo_regex.captures_iter(&response_text) {
-                    let vivo_link = capture
-                        .get(1)
-                        .ok_or(anyhow!("Regex did not find vivo link"))?
-                        .as_str()
-                        .to_string();
-                    episodes.push(vivo_link.clone());
-                    println!(
-                        "{}",
-                        format!("[*] Fetched episode {}. ({})", episode_count, vivo_link)
+                let mut response = client
+                    .post(&format!("{}/check_hoster.php", SITE))
+                    .form(&[
+                        ("epi", &episode_count.to_string()),
+                        ("aid", &self.id.to_string()),
+                        ("act", &episode_count.to_string()),
+                        ("vkey", &vkey.to_string()),
+                        ("username", &"".to_string()),
+                    ])
+                    .send()?;
+                let response_text = response.text()?;
+                if vivo_regex.is_match(&response_text) {
+                    // vivo
+                    for capture in vivo_regex.captures_iter(&response_text) {
+                        let vivo_link = capture
+                            .get(1)
+                            .ok_or(anyhow!("Regex did not find vivo link"))?
                             .as_str()
-                            .green()
-                    );
+                            .to_string();
+                        episodes.push(vivo_link.clone());
+                        println!(
+                            "{}",
+                            format!("[*] Fetched episode {}. ({})", episode_count, vivo_link)
+                                .as_str()
+                                .green()
+                        );
+                    }
+                    continue 'outer;
                 }
-                continue;
-            }
 
-            if alternative_regex.is_match(&response_text) {
-                // other hosters
-                if let Some(capture) = alternative_regex.captures_iter(&response_text).next() {
-                    let mut response = client
-                        .post(&format!("{}/check_video.php", SITE))
-                        .form(&[("vidhash", capture.get(1).unwrap().as_str())])
-                        .send()?;
-                    let response_text = response.text()?.trim().to_string();
-                    println!(
-                        "{}",
-                        format!("[*] Fetched episode {}. ({})", episode_count, response_text)
-                    );
-                    episodes.push(response_text);
+                if alternative_regex.is_match(&response_text) {
+                    // other hosters
+                    if let Some(capture) = alternative_regex.captures_iter(&response_text).next() {
+                        let mut response = client
+                            .post(&format!("{}/check_video.php", SITE))
+                            .form(&[("vidhash", capture.get(1).unwrap().as_str())])
+                            .send()?;
+                        let response_text = response.text()?.trim().to_string();
+                        println!(
+                            "{}",
+                            format!("[*] Fetched episode {}. ({})", episode_count, response_text)
+                        );
+                        episodes.push(response_text);
+                    }
+                    continue 'outer;
                 }
-                continue;
             }
         }
         Ok(episodes)
