@@ -119,7 +119,7 @@ impl CookieJar {
         Ok(cookie_jar)
     }
 
-    pub fn update(&mut self, cookie_jar: CookieJar) {
+    pub fn _update(&mut self, cookie_jar: CookieJar) {
         for cookie in cookie_jar.cookies {
             self.add_cookie(cookie.1);
         }
