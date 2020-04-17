@@ -163,9 +163,9 @@ fn run() -> Result<(), Error> {
             let link = link.as_str();
             let hoster = Host::get_from_name(link);
             let downloader = match hoster {
-                Host::Vivo => Some(downloader::vivo::new(link)?),
-                Host::Vidoza => Some(downloader::vidoza::new(link)?),
-                Host::GoUnlimited => Some(downloader::gounlimited::new(link)?),
+                Host::Vivo => Some(downloader::vivo::new(link)),
+                Host::Vidoza => Some(downloader::vidoza::new(link)),
+                Host::GoUnlimited => Some(downloader::gounlimited::new(link)),
                 _ => None,
             };
             if downloader.is_none() {
@@ -173,6 +173,16 @@ fn run() -> Result<(), Error> {
                 exit(1);
             }
             let downloader = downloader.unwrap();
+            if downloader.is_err() {
+                println!(
+                    "{}",
+                    format!("Failed to download from {}. Skipping...", link)
+                        .as_str()
+                        .red()
+                );
+                continue;
+            }
+            let downloader = downloader?;
             let episode_name = format!("{}/{}.{}", output, pattern, downloader.get_extension());
             println!(
                 "{}",
