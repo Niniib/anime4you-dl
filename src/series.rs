@@ -1,19 +1,15 @@
+use anyhow::{anyhow, Error};
+use colored::Colorize;
 use image::Rgba;
+use image::{load_from_memory_with_format, ImageFormat};
+use regex::Regex;
+use reqwest::header::HeaderValue;
+use reqwest::Client;
 use std::collections::HashMap;
 use std::io::Read;
 use std::process::exit;
 use std::thread;
 use std::time::Duration;
-
-use colored::Colorize;
-use regex::Regex;
-use reqwest::header::HeaderValue;
-use reqwest::Client;
-
-use anyhow::{anyhow, Error};
-use image::{load_from_memory_with_format, ImageFormat};
-
-extern crate image;
 
 const SITE: &str = "https://www.anime4you.one";
 const CAPTCHA_SITE: &str = "https://captcha.anime4you.one";
@@ -395,7 +391,7 @@ impl Series {
                     )?);
                     println!(
                         "\t\t{}",
-                        format!("[*] Got capture hash icon {}", hash)
+                        format!("[*] Got capture icon hash {}", hash)
                             .as_str()
                             .green()
                     );
@@ -412,7 +408,7 @@ impl Series {
                     ));
                 }
                 alpha_values.sort_by_key(|&(_, a)| a);
-                let random_hash = value
+                let answer_hash = value
                     .get(
                         if (alpha_values[0].1 as i64 - alpha_values[1].1 as i64).abs()
                             > (alpha_values[3].1 as i64 - alpha_values[4].1 as i64).abs()
@@ -444,14 +440,14 @@ impl Series {
                     .header("Cookie", cookie_jar.serialize())
                     .header("Connection", "keep-alive")
                     .header("Accept", "*/*")
-                    .form(&[("cID", "0"), ("pC", random_hash), ("rT", "2")])
+                    .form(&[("cID", "0"), ("pC", answer_hash), ("rT", "2")])
                     .send()?;
 
                 let mut vkey_request = client
                     .post(&format!("{}{}", CAPTCHA_SITE, CHECK_CAPTCHA))
                     .header("Cookie", cookie_jar.serialize())
                     .form(&[
-                        ("captcha-hf", random_hash),
+                        ("captcha-hf", answer_hash),
                         ("captcha-idhf", "0"),
                         ("aid", self.id.to_string().as_str()),
                         ("epi", episode_count.to_string().as_str()),
@@ -481,7 +477,7 @@ impl Series {
                         ("aid", &self.id.to_string()),
                         ("act", &episode_count.to_string()),
                         ("vkey", &vkey.to_string()),
-                        ("username", &"".to_string()),
+                        ("username", &String::new()),
                     ])
                     .send()?;
                 let response_text = response.text()?;

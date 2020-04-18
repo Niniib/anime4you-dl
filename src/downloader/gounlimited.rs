@@ -17,6 +17,6 @@ pub fn new(url: &str) -> Result<Downloader, Error> {
     Ok(Downloader {
         url: String::from(url),
         video_url,
-        file_name: format!("v.mp4"),
+        file_name: String::from("v.mp4"),
     })
 }
