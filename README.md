@@ -1,3 +1,4 @@
+# This program is currently in a non-working state
 # Anime4You-dl
 Downloads anime from https://www.anime4you.one/
 ## How to use?
