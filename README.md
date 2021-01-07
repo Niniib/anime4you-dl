@@ -1,19 +1,19 @@
-# This program is currently in a non-working state
 # Anime4You-dl
 Downloads anime from https://www.anime4you.one/
 ## How to use?
+To faster download episodes you can use the prebuild `db.bin` which is located in this repository. Place it in the same directory as the executable.
 ### You can also show the help with **--help**
 ### Specify series
 To specify an anime use `--name (-n) "Anime name"` or `--id (-i) id`
 
-In this downloader the Id is the series number of anime4you
+The Id is the series number of anime4you
 
 ![id](https://i.imgur.com/Yll2u31.png)
 
 ### Language
-With the **--gersub (-s)** flag you download the series with japanese synchronization and german subtitles
+With the **--gersub (-s)** flag you download the series with japanese dubbing and german subtitles
 
-With the **--gerdub (-d)** flag you download the series with german synchronization
+With the **--gerdub (-d)** flag you download the series with german dubbing
 
 ### Specify episodes
 With the **--episodes (-e)** option you can download specified episodes | 2,5 will download episodes 2 through 5
@@ -21,7 +21,11 @@ With the **--episodes (-e)** option you can download specified episodes | 2,5 wi
 ### File pattern
 With the **--file-pattern (-p) "(%series_name)-Episode-(%episode)"** option you can specify a pattern of your choice with `(%series_name)` `(%episode)`
 
-The file extension will be recognized automatically
+The file extension will be added automatically
+
+### Parallel downloads
+
+If you have a fast internet connection you can add **--parallel** to download multiple episodes at once.
 
 ### youtube-dl
 With the **--youtube-dl (-y)** flag you download the series with `youtube-dl`
