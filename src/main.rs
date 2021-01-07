@@ -177,8 +177,7 @@ pub async fn main() -> Result<(), Error> {
     let mut episode: u32 = range[0];
     let mut path = std::env::current_exe()?.ancestors().collect::<Vec<&Path>>()[1].to_path_buf();
     path.push("db.bin");
-    let db =
-        FileDatabase::<HashMap<String, Vec<u8>>, Bincode>::load_from_path_or_default(path)?;
+    let db = FileDatabase::<HashMap<String, Vec<u8>>, Bincode>::load_from_path_or_default(path)?;
     let mut handels = Vec::new();
     loop {
         resolver.populate_cookies(episode).await?;
@@ -203,7 +202,7 @@ pub async fn main() -> Result<(), Error> {
                 .await?;
             if response.is_none() {
                 fail("Captcha submission was wrong, reloading...");
-                None
+                continue;
             } else {
                 done("Captcha submission was correct, saving in local database.");
                 db.write(|db| {
@@ -252,7 +251,7 @@ pub async fn main() -> Result<(), Error> {
                     .await?;
                 if response.is_none() {
                     fail("Captcha submission was wrong, reloading...");
-                    None
+                    continue;
                 } else {
                     done("Captcha submission was correct.");
                     let mut link = None;
@@ -265,7 +264,7 @@ pub async fn main() -> Result<(), Error> {
                     link
                 }
             } else {
-                None
+                continue;
             }
         };
         episode += 1;
