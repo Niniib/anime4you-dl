@@ -36,6 +36,21 @@ fn is_range(test: String) -> Result<(), String> {
     Ok(())
 }
 
+fn sanitize_filename(input: &str) -> String {
+    if cfg!(windows) {
+        input
+            .chars()
+            .into_iter()
+            .map(|c| match c {
+                '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => ' ',
+                _ => c,
+            })
+            .collect()
+    } else {
+        input.replace("/", " ")
+    }
+}
+
 fn done(log: &str) {
     println!("{} {}", "[+]".color(Color::Green), log.color(Color::Green))
 }
@@ -96,7 +111,7 @@ pub async fn main() -> Result<(), Error> {
                 .help("Downloads the episodes with german audio."),
         )
         .arg(
-            Arg::with_name("out")
+            Arg::with_name("output")
                 .long("out")
                 .short("o")
                 .takes_value(true)
@@ -169,9 +184,10 @@ pub async fn main() -> Result<(), Error> {
     let output = if matches.is_present("output") {
         matches.value_of("output").unwrap().to_string()
     } else {
-        format!("{} ({})", series.title.as_str(), series.id)
+        let output = format!("{} ({})", series.title.as_str(), series.id);
+        sanitize_filename(output.as_str())
     };
-    let _ = tokio::fs::create_dir(output.as_str()).await;
+    tokio::fs::create_dir_all(output.as_str()).await?;
     done(format!("Found series \"{}\".", &series.title).as_str());
     let mut resolver = Resolver::from_series(series);
     let mut episode: u32 = range[0];
@@ -349,7 +365,7 @@ async fn download(
     title: &str,
     use_youtube_dl: bool,
 ) -> Result<(), Error> {
-    let pattern = pattern.replace("(%series_name)", title);
+    let pattern = pattern.replace("(%series_name)", sanitize_filename(title).as_str());
     let pattern = pattern.replace("(%episode)", episode.to_string().as_str());
     let pattern = format!("{}/{}", output, pattern);
     if use_youtube_dl {
@@ -375,7 +391,7 @@ async fn download(
         let pattern = format!("{}.{}", pattern, downloader.get_extension());
         pending(
             format!(
-                "Downlaoding episode {} from {:?}...",
+                "Downloading episode {} from {:?}...",
                 episode, downloader.host
             )
             .as_str(),
