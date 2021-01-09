@@ -273,10 +273,6 @@ impl Resolver {
                 format!("{}/show/1/aid/{}/epi/{}", SITE, self.series.id, episode).as_str(),
             )
             .header(
-                "Referer",
-                format!("{}/show/1/aid/{}/epi/{}", SITE, self.series.id, episode).as_str(),
-            )
-            .header(
                 "Accept",
                 "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
             )
@@ -353,10 +349,6 @@ impl Resolver {
                 format!("{}/show/1/aid/{}/epi/{}", SITE, self.series.id, episode).as_str(),
             )
             .header(
-                "Referer",
-                format!("{}/show/1/aid/{}/epi/{}", SITE, self.series.id, episode).as_str(),
-            )
-            .header(
                 "Accept",
                 "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
             )
@@ -394,10 +386,6 @@ impl Resolver {
             .client
             .post(format!("{}/Captcheck/humancheck.php", SITE).as_str())
             .header("Cookie", self.cookies.serialize())
-            .header(
-                "Referer",
-                format!("{}/show/1/aid/{}/epi/{}", SITE, self.series.id, episode).as_str(),
-            )
             .header(
                 "Referer",
                 format!("{}/show/1/aid/{}/epi/{}", SITE, self.series.id, episode).as_str(),

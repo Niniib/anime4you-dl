@@ -195,7 +195,13 @@ pub async fn main() -> Result<(), Error> {
     path.push("db.bin");
     let db = FileDatabase::<HashMap<String, Vec<u8>>, Bincode>::load_from_path_or_default(path)?;
     let mut handels = Vec::new();
-    loop {
+    'main: loop {
+        if episode != range[0] {
+            sleep(Duration::from_millis(
+                matches.value_of("delay").unwrap().parse::<u64>().unwrap(),
+            ))
+            .await;
+        }
         resolver.populate_cookies(episode).await?;
         done(format!("Fetched cookies for Episode {}.", episode).as_str());
         let captcha = resolver.get_captcha(episode).await?;
@@ -248,7 +254,13 @@ pub async fn main() -> Result<(), Error> {
             let mut diffs = Vec::new();
             pending("Searching for most similar image...");
             for image in &images {
-                let compare_image = lodepng::decode32(image)?;
+                let compare_image = lodepng::decode32(image);
+                if let Some(error) = compare_image.as_ref().err() {
+                    fail("Failed to compare images.");
+                    fail(error.to_string().as_str());
+                    continue 'main;
+                }
+                let compare_image = compare_image?;
                 let compare_image = attr
                     .create_image(&Img::new(
                         compare_image.buffer.to_rgbaplu(),
@@ -321,10 +333,6 @@ pub async fn main() -> Result<(), Error> {
         if episode >= range[1] {
             break;
         }
-        sleep(Duration::from_millis(
-            matches.value_of("delay").unwrap().parse::<u64>().unwrap(),
-        ))
-        .await;
     }
     for handle in handels {
         handle.await?;
