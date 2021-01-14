@@ -1,6 +1,6 @@
 [package]
 name = "anime4you-dl"
-version = "1.0.2"
+version = "1.0.3"
 authors = ["niniib <ninib0@protonmail.com>", "fludixx <fludixs@protonmail.com>"]
 edition = "2018"
 
