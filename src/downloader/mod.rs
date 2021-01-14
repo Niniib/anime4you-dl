@@ -4,6 +4,7 @@ use anyhow::Error;
 
 use crate::anime4you::Host;
 
+pub mod streamtape;
 pub mod gounlimited;
 pub mod vidoza;
 pub mod vivo;

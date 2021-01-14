@@ -356,11 +356,12 @@ fn youtube_dl(url: &str, output: &str) -> Result<(), Error> {
 }
 
 async fn get_downloader(link: &str) -> Result<Downloader, Error> {
-    let hoster = Host::get_from_name(link);
+    let hoster = Host::get_from_url(link);
     match hoster {
         Host::Vivo => downloader::vivo::new(link).await,
         Host::Vidoza => downloader::vidoza::new(link).await,
         Host::GoUnlimited => downloader::gounlimited::new(link).await,
+        Host::Streamtape => downloader::streamtape::new(link).await,
         _ => Err(anyhow!("Host is unsupported."))?,
     }
 }
@@ -379,18 +380,7 @@ async fn download(
     if use_youtube_dl {
         youtube_dl(link, pattern.as_str())?;
     } else {
-        let hoster = Host::get_from_name(link);
-        let downloader = match hoster {
-            Host::Vivo => Some(downloader::vivo::new(link).await),
-            Host::Vidoza => Some(downloader::vidoza::new(link).await),
-            Host::GoUnlimited => Some(downloader::gounlimited::new(link).await),
-            _ => None,
-        };
-        if downloader.is_none() {
-            fail("No hoster was found.");
-            return Ok(());
-        }
-        let downloader = downloader.unwrap();
+        let downloader = get_downloader(link).await;
         if downloader.is_err() {
             fail("An error occured while trying to download an episode.");
             return Ok(());

@@ -11,9 +11,10 @@ use crate::cookie::CookieJar;
 // priority
 #[repr(u32)]
 pub enum Host {
-    Vivo = 2,
-    Vidoza = 3,
-    GoUnlimited = 1,
+    Vivo = 3,
+    Vidoza = 4,
+    GoUnlimited = 2,
+    Streamtape = 1,
     Unknown = 0,
 }
 
@@ -22,11 +23,10 @@ const CAPTCHA_SITE: &str = "https://captcha.anime4you.one";
 const ANIME_LIST: &str = "/speedlist.old.txt";
 
 impl Host {
-    pub fn get_from_name(link: &str) -> Host {
+    pub fn get_from_url(url: &str) -> Host {
         let regex = Regex::new(r#"https://(.*?)/"#).unwrap();
-        let mut hoster = Host::Unknown;
-        if let Some(capture) = regex.captures_iter(link).next() {
-            hoster = match capture
+        if let Some(capture) = regex.captures_iter(url).next() {
+            match capture
                 .get(1)
                 .ok_or(anyhow!("regex capture does not have valid string result"))
                 .unwrap()
@@ -35,10 +35,12 @@ impl Host {
                 "vivo.sx" => Host::Vivo,
                 "gounlimited.to" => Host::GoUnlimited,
                 "vidoza.net" => Host::Vidoza,
+                "streamtape.com" => Host::Streamtape,
                 _ => Host::Unknown,
             }
+        } else {
+            Host::Unknown
         }
-        hoster
     }
 }
 
@@ -438,7 +440,7 @@ impl Resolver {
             }
         }
         // sort by priority (defined in Enum)
-        links.sort_by(|a, b| (Host::get_from_name(b) as u32).cmp(&(Host::get_from_name(a) as u32)));
+        links.sort_by(|a, b| (Host::get_from_url(b) as u32).cmp(&(Host::get_from_url(a) as u32)));
         Ok(links)
     }
 }
