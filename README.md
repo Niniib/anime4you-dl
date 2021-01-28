@@ -1,3 +1,5 @@
+As of 2021/01/26, anime4you decided to stop their project and to join serienstream (s.to). If you want to continue downloading animes/series, [a contributor from this project also made a somewhat functional downloader for serienstream.](https://github.com/Fludixx/serienstream-dl)
+
 # Anime4You-dl
 Downloads anime from https://www.anime4you.one/
 ## How to use?
